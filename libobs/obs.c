@@ -820,6 +820,8 @@ void obs_shutdown(void)
 	obs_free_graphics();
 	proc_handler_destroy(obs->procs);
 	signal_handler_destroy(obs->signals);
+	obs->procs = NULL;
+	obs->signals = NULL;
 
 	module = obs->first_module;
 	while (module) {
@@ -1815,6 +1817,11 @@ profiler_name_store_t *obs_get_profiler_name_store(void)
 uint64_t obs_get_video_frame_time(void)
 {
 	return obs ? obs->video.video_time : 0;
+}
+
+double obs_get_active_fps(void)
+{
+	return obs ? obs->video.video_fps : 0.0;
 }
 
 enum obs_obj_type obs_obj_get_type(void *obj)
