@@ -509,6 +509,19 @@ struct audio_cb_info {
 	void *param;
 };
 
+//use in visual composition
+enum visual_frame_type {
+	NORMAL_FRAME,
+	SCREEN_FRAME,
+	ENVIROMENT_FRAME,
+	CAMERA_FRAME
+};
+
+enum visual_area_control_type {
+	NORMAL,
+	CONTROL
+};
+
 struct obs_source {
 	struct obs_context_data         context;
 	struct obs_source_info          info;
@@ -577,6 +590,10 @@ struct obs_source {
 	float                           volume;
 	int64_t                         sync_offset;
 	int64_t                         last_sync_offset;
+
+	/* visual control */
+	enum visual_frame_type			*visual_frame_type;
+	enum visual_area_control_type	*visual_show_area_control_type;
 
 	/* async video data */
 	gs_texture_t                    *async_texture;

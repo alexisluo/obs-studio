@@ -19,6 +19,7 @@
 #include "util/threading.h"
 #include "graphics/math-defs.h"
 #include "obs-scene.h"
+#include "visual/visual-service.h"
 
 /* NOTE: For proper mutex lock order (preventing mutual cross-locks), never
  * lock the graphics mutex inside either of the scene mutexes.
@@ -516,6 +517,7 @@ static void scene_video_render(void *data, gs_effect_t *effect)
 	gs_blend_state_push();
 	gs_reset_blend_state();
 
+	struct visual_service* visualService = get_visual_service();
 	while (item) {
 		if (obs_source_removed(item->source)) {
 			struct obs_scene_item *del_item = item;
@@ -529,11 +531,15 @@ static void scene_video_render(void *data, gs_effect_t *effect)
 		if (source_size_changed(item))
 			update_item_transform(item);
 
-		if (item->user_visible)
+		if (item->user_visible) {
+			visualService->cached_source(item);
 			render_item(item);
+		}
 
 		item = item->next;
 	}
+
+	visualService->visual_render();
 
 	gs_blend_state_pop();
 
