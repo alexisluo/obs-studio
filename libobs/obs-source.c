@@ -29,6 +29,8 @@
 #include "obs.h"
 #include "obs-internal.h"
 
+#include "visual/visual-service.h"
+
 static inline bool data_valid(const struct obs_source *source, const char *f)
 {
 	return obs_source_valid(source, f) && source->context.data;
@@ -665,6 +667,20 @@ obs_data_t *obs_get_source_defaults(const char *id)
 	return info ? get_defaults(info) : NULL;
 }
 
+//add visual property to source
+void source_add_visual_properties(obs_properties_t *properties) {
+	obs_property_t *p;
+	p = obs_properties_add_list(properties, VISUAL_FRAME_TYPE, VISUAL_FRAME_TYPE_DESCRIPTION,
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, "normal", NORMAL_FRAME);
+	obs_property_list_add_int(p, "screen", SCREEN_FRAME);
+	obs_property_list_add_int(p, "enviroment", ENVIROMENT_FRAME);
+	obs_property_list_add_int(p, "camera", CAMERA_FRAME);
+
+	obs_properties_add_button(properties, TEXT_BG_ANALYSE, TEXT_BG_ANALYSE,
+		visual_analyse_background_clicked);
+}
+
 obs_properties_t *obs_get_source_properties(const char *id)
 {
 	const struct obs_source_info *info = get_source_info(id);
@@ -675,13 +691,7 @@ obs_properties_t *obs_get_source_properties(const char *id)
 		properties = info->get_properties(NULL);
 
 		/* visual add property*/
-		obs_property_t *p;
-		p = obs_properties_add_list(properties, "visual_frame_type", "visual_frame_type",
-			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-		obs_property_list_add_int(p, "normal", NORMAL_FRAME);
-		obs_property_list_add_int(p, "screen", SCREEN_FRAME);
-		obs_property_list_add_int(p, "enviroment", ENVIROMENT_FRAME);
-		obs_property_list_add_int(p, "camera", CAMERA_FRAME);
+		source_add_visual_properties(properties);
 
 		obs_properties_apply_settings(properties, defaults);
 		obs_data_release(defaults);
@@ -712,13 +722,7 @@ obs_properties_t *obs_source_properties(const obs_source_t *source)
 		props = source->info.get_properties(source->context.data);
 
 		/* visual add property*/
-		obs_property_t *p;
-		p = obs_properties_add_list(props, "visual_frame_type", "visual_frame_type",
-			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-		obs_property_list_add_int(p, "normal", NORMAL_FRAME);
-		obs_property_list_add_int(p, "screen", SCREEN_FRAME);
-		obs_property_list_add_int(p, "enviroment", ENVIROMENT_FRAME);
-		obs_property_list_add_int(p, "camera", CAMERA_FRAME);
+		source_add_visual_properties(props);
 
 		obs_properties_apply_settings(props, source->context.settings);
 		return props;
@@ -2580,8 +2584,14 @@ struct obs_source_frame *obs_source_get_frame(obs_source_t *source)
 
 	pthread_mutex_lock(&source->async_mutex);
 
-	frame = source->cur_async_frame;
-	source->cur_async_frame = NULL;
+	if (source->visual_cur_async_frame != NULL) {
+		frame = source->visual_cur_async_frame;
+		source->visual_cur_async_frame = NULL;
+	}
+	else {
+		frame = source->cur_async_frame;
+		source->cur_async_frame = NULL;
+	}
 
 	if (frame) {
 		os_atomic_inc_long(&frame->refs);

@@ -1,4 +1,4 @@
-#include <obs.h>
+#include <obs-internal.h>
 #include <windows.h>
 
 void check_video_format(enum video_format format);
@@ -17,3 +17,8 @@ void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t u, uint8_t v
 
 //void RGB2HSV(uint8_t r, uint8_t g, uint8_t b, uint8_t* h, uint8_t* s, uint8_t* v);
 //void HSV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t h, uint8_t s, uint8_t v);
+
+//2dµã Î»ÖÃ¾ØÕó
+void mat4_trans(const struct matrix4 *trans_mat, int* x, uint8_t* y, int *res_x, int *res_y);
+void mat4_invtrans(const struct matrix4 *trans_mat, int* x, uint8_t* y, int *res_x, int *res_y);
+

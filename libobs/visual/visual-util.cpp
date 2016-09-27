@@ -114,16 +114,34 @@ void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t u, uint8_t v
 	*b = b0 > 255 ? 255 : b0;
 }
 
-/*
-void RGB2HSV(uint8_t r, uint8_t g, uint8_t b, uint8_t* h, uint8_t* s, uint8_t* v) {
-	*r = y + 1.140*v;
-	*g = y - 0.394*u - 0.581*v;
-	*b = y + 2.032*u;
+//2d point, m_4 always 0001
+void mat4_trans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, int *res_y) {
+	float mat11, mat12, mat14, mat21, mat22, mat24;
+	mat11 = trans_mat->x.x;
+	mat12 = trans_mat->y.x;
+	mat14 = trans_mat->t.x;
+	mat21 = trans_mat->x.y;
+	mat22 = trans_mat->y.y;
+	mat24 = trans_mat->t.y;
+
+	*res_x = (float)mat11 * *x + mat12 * *y + mat14;
+	*res_y = (float)mat21 * *x + mat22 * *y + mat24;
 }
 
-void HSV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t h, uint8_t s, uint8_t v) {
-	*r = y + 1.140*v;
-	*g = y - 0.394*u - 0.581*v;
-	*b = y + 2.032*u;
+//2d point, m_4 always 0001
+void mat4_invtrans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, int *res_y) {
+	float mat11, mat12, mat14, mat21, mat22, mat24;
+	mat11 = trans_mat->x.x;
+	mat12 = trans_mat->y.x;
+	mat14 = trans_mat->t.x;
+	mat21 = trans_mat->x.y;
+	mat22 = trans_mat->y.y;
+	mat24 = trans_mat->t.y;
+
+	float divsior = mat11*mat22 - mat21*mat12;
+	//*res_x = ((float)mat21* *y - mat22* *x + mat14*mat22 - mat24*mat21) / (-divsior);
+	//*res_y = ((float)mat11* *y - mat12* *x + mat14*mat12 - mat24*mat11) / divsior;
+
+	*res_x = ((float)mat12* *y - mat22* *x + mat14*mat22 - mat24*mat12) / (-divsior);
+	*res_y = ((float)mat11* *y - mat21* *x + mat14*mat21 - mat24*mat11) / divsior;
 }
-*/

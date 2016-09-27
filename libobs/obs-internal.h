@@ -592,8 +592,9 @@ struct obs_source {
 	int64_t                         last_sync_offset;
 
 	/* visual control */
-	enum visual_frame_type			*visual_frame_type;
-	enum visual_area_control_type	*visual_show_area_control_type;
+	struct obs_source_frame         *visual_cur_async_frame;
+	//enum visual_frame_type			visual_frame_type;
+	//enum visual_area_control_type	visual_show_area_control_type;
 
 	/* async video data */
 	gs_texture_t                    *async_texture;

@@ -19,6 +19,7 @@
 #include "util/threading.h"
 #include "graphics/math-defs.h"
 #include "obs-scene.h"
+
 #include "visual/visual-service.h"
 
 /* NOTE: For proper mutex lock order (preventing mutual cross-locks), never
@@ -532,14 +533,17 @@ static void scene_video_render(void *data, gs_effect_t *effect)
 			update_item_transform(item);
 
 		if (item->user_visible) {
-			visualService->cached_source(item);
+			if (visualService != NULL)
+				visualService->cached_source(item);
+
 			render_item(item);
 		}
 
 		item = item->next;
 	}
 
-	visualService->visual_render();
+	if (visualService != NULL)
+		visualService->visual_render();
 
 	gs_blend_state_pop();
 
