@@ -2,11 +2,6 @@
 
 struct visual_service *visualService = NULL;
 
-enum visual_current_stage {
-	VISUAL_STAGE_SHOW,
-	VISUAL_STAGE_ANALYSE_BACKGROUND
-};
-
 struct visual_service* get_visual_service() {
 	if (visualService != NULL)
 		return visualService;
@@ -29,66 +24,6 @@ struct visual_service* get_visual_service() {
 
 	return visualService;
 }
-/*
-uint8_t* get_source_frame_data(struct obs_source* source, const struct matrix4 *trans_mat) {
-	struct obs_source_frame *frame = obs_source_get_frame(source);
-	if (!frame)
-		return NULL;
-	
-	unsigned int width, height, frame_width, frame_height;
-	width = visualService->width;
-	height = visualService->height;
-	frame_width = frame->width;
-	frame_height = frame->height;
-
-	uint8_t* data = malloc(sizeof(uint8_t)*width*height*4);
-	for (uint32_t i = 0; i < sizeof(uint8_t)*width*height * 4; ++i)
-		data[i] = 0;
-
-	//MessageBox(GetActiveWindow(), intToW(frame->format, 10), TEXT("c"), MB_OK);
-
-	uint8_t y, Cb, Cr, u, v, r, g, b;
-	unsigned int trans_w, trans_h;
-	for (uint32_t h = 0; h < height; ++h) {
-		for (uint32_t w = 0; w < width; ++w) {
-			mat4_invtrans(trans_mat, &w, &h, &trans_w, &trans_h);
-			if (trans_w < 0 || trans_w >= frame_width || trans_h < 0 || trans_h >= frame_height)
-				continue;
-
-			if (frame->format == VIDEO_FORMAT_BGRA) {
-				data[4 * (h*width + w)] = frame->data[0][4 * (trans_h*frame_width + trans_w)];
-				data[4 * (h*width + w) + 1] = frame->data[0][4 * (trans_h*frame_width + trans_w) + 1];
-				data[4 * (h*width + w) + 2] = frame->data[0][4 * (trans_h*frame_width + trans_w) + 2];
-				data[4 * (h*width + w) + 3] = frame->data[0][4 * (trans_h*frame_width + trans_w) + 3];
-			}
-			else if (frame->format == VIDEO_FORMAT_YUY2) {
-				y = frame->data[0][trans_h*frame_width + trans_w];
-				u = frame->data[1][(trans_h*frame_width + trans_w)/2];
-				v = frame->data[2][(trans_h*frame_width + trans_w)/2];
-				YUV2RGB(&r, &g, &b, y, u, v);
-
-				data[4 * (h*width + w)] = b;
-				data[4 * (h*width + w) + 1] = g;
-				data[4 * (h*width + w) + 2] = r;
-				data[4 * (h*width + w) + 3] = 255;
-			}
-			else if (frame->format == VIDEO_FORMAT_I420) {
-				y = frame->data[0][trans_h*frame_width + trans_w];
-				Cb = frame->data[1][(trans_h / 2)*(frame_width / 2) + trans_w / 2];
-				Cr = frame->data[2][(trans_h / 2)*(frame_width / 2) + trans_w / 2];
-				yCbCr2RGB(&r, &g, &b, y, Cb, Cr);
-
-				data[4 * (h*width + w)] = b;
-				data[4 * (h*width + w) + 1] = g;
-				data[4 * (h*width + w) + 2] = r;
-				data[4 * (h*width + w) + 3] = 255;
-			}
-		}
-	}
-	obs_source_release_frame(source, frame);
-	return data;
-}
-*/
 
 void analyse_background(uint8_t *framedata) {
 	unsigned int width = visualService->width;
@@ -138,10 +73,10 @@ uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
 	unsigned int width, height;
 	width = frame->width;
 	height = frame->height;
-
+    
 	uint8_t* data = bmalloc(sizeof(uint8_t)*width*height * 4);
 	uint8_t y, Cb, Cr, u, v, r, g, b;
-	unsigned int ypos, upos, vpos;
+	unsigned int ypos, upos, vpos, pos;
 	for (uint32_t h = 0; h < height; ++h) {
 		for (uint32_t w = 0; w < width; ++w) {
 			if (frame->format == VIDEO_FORMAT_BGRA) {
@@ -151,9 +86,10 @@ uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
 				data[4 * (h*width + w) + 3] = frame->data[0][4 * (h*width + w) + 3];
 			}
 			else if (frame->format == VIDEO_FORMAT_YUY2) {
-				ypos = 2 * (h*width + w);
-				upos = (ypos % 2 == 0) ? ypos + 1 : ypos - 1;
-				vpos = (ypos % 2 == 0) ? ypos + 3 : ypos + 1;
+                pos = h*width + w;
+				ypos = 2 * pos;
+				upos = (pos % 2 == 0) ? ypos + 1 : ypos - 1;
+				vpos = (pos/2 % 2 == 0) ? ypos + 3 : ypos + 1;
 
 				y = frame->data[0][ypos];
 				u = frame->data[0][upos];
@@ -165,6 +101,23 @@ uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
 				data[4 * (h*width + w) + 2] = r;
 				data[4 * (h*width + w) + 3] = 255;
 			}
+            else if (frame->format == VIDEO_FORMAT_UYVY) {
+                pos = h*width + w;
+                ypos = 2 * pos+1;
+                upos = (pos % 2 == 0) ? ypos - 1 : ypos - 3;
+                vpos = (pos % 2 == 0) ? ypos + 1 : ypos - 1;
+                
+                y = frame->data[0][ypos];
+                u = frame->data[0][upos];
+                v = frame->data[0][vpos];
+                YUV2RGB(&r, &g, &b, y, u, v);
+                
+                data[4 * (h*width + w)] = b;
+                data[4 * (h*width + w) + 1] = g;
+                data[4 * (h*width + w) + 2] = r;
+                data[4 * (h*width + w) + 3] = 255;
+                
+            }
 			else if (frame->format == VIDEO_FORMAT_I420) {
 				y = frame->data[0][h*width + w];
 				Cb = frame->data[1][(h / 2)*(width / 2) + w / 2];

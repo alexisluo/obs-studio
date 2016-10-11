@@ -2,6 +2,7 @@
 
 
 void check_video_format(enum video_format format) {
+    /*
 	if (format == VIDEO_FORMAT_NONE) {
 		MessageBox(GetActiveWindow(), TEXT("NONE"), TEXT("c"), MB_OK);
 	}
@@ -35,8 +36,10 @@ void check_video_format(enum video_format format) {
 	else {
 		MessageBox(GetActiveWindow(), TEXT("unknow format"), TEXT("c"), MB_OK);
 	}
+     */
 }
 
+/*
 LPWSTR intToW(int n, int len) {
 	wchar_t *wc = malloc(sizeof(wchar_t)*len);
 	_itow_s(n, wc, len, len);
@@ -50,7 +53,8 @@ LPWSTR charToW(const char* str) {
 	wchar[strlen(wchar)] = '\0';
 	return wchar;
 }
-
+*/
+ 
 int str2Int(char* str) {
 	unsigned int res, i;
 	res = i = 0;
@@ -104,14 +108,20 @@ void yCbCr2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t Cb, uint8_
 }
 
 void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t u, uint8_t v) {
-	int r0 = y + 1.140*v;
-	int g0 = y - 0.394*u - 0.581*v;
-	int b0 = y + 2.032*u;
+	//int r0 = y + 1.140*v;
+	//int g0 = y - 0.394*u - 0.581*v;
+	//int b0 = y + 2.032*u; wrong formula
+    
+    int r0 = y + 1.042*(v-128);
+    int g0 = y - 0.34414*(u-128) - 0.71414*(v-128);
+    int b0 = y + 1.772*(u-128);
 
 	*r = r0 > 255 ? 255 : r0;
+    *r = r0 < 0 ? 0 : r0;
 	*g = g0 > 255 ? 255 : g0;
 	*g = g0 < 0 ? 0 : g0;
 	*b = b0 > 255 ? 255 : b0;
+    *b = b0 < 0 ? 0 : b0;
 }
 
 //2d point, m_4 always 0001
@@ -139,9 +149,6 @@ void mat4_invtrans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, 
 	mat24 = trans_mat->t.y;
 
 	float divsior = mat11*mat22 - mat21*mat12;
-	//*res_x = ((float)mat21* *y - mat22* *x + mat14*mat22 - mat24*mat21) / (-divsior);
-	//*res_y = ((float)mat11* *y - mat12* *x + mat14*mat12 - mat24*mat11) / divsior;
-
 	*res_x = ((float)mat12* *y - mat22* *x + mat14*mat22 - mat24*mat12) / (-divsior);
 	*res_y = ((float)mat11* *y - mat21* *x + mat14*mat21 - mat24*mat11) / divsior;
 }

@@ -13,6 +13,11 @@
 #define VISUAL_FRAME_TYPE		   "visual_frame_type"
 #define VISUAL_FRAME_TYPE_DESCRIPTION 		   "visual_frame_type_description"
 
+enum visual_current_stage {
+    VISUAL_STAGE_SHOW,
+    VISUAL_STAGE_ANALYSE_BACKGROUND
+};
+
 struct visual_service {
 	uint8_t* cached_data;
 	unsigned int width;

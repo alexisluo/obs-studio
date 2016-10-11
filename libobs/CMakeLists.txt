@@ -310,12 +310,20 @@ set(libobs_libobs_HEADERS
 	obs-ffmpeg-compat.h
 	obs.hpp)
 
+set(libobs_visual_SOURCES
+	visual/visual-service.c
+	visual/visual-util.c)
+set(libobs_visual_HEADERS
+	visual/visual-service.h
+	visual/visual-util.h)
+
 set(libobs_SOURCES
 	${libobs_callback_SOURCES}
 	${libobs_graphics_SOURCES}
 	${libobs_mediaio_SOURCES}
 	${libobs_util_SOURCES}
-	${libobs_libobs_SOURCES})
+	${libobs_libobs_SOURCES}
+	${libobs_visual_SOURCES})
 
 set(libobs_HEADERS
 	${libobs_config_HEADERS}
@@ -323,7 +331,8 @@ set(libobs_HEADERS
 	${libobs_graphics_HEADERS}
 	${libobs_mediaio_HEADERS}
 	${libobs_util_HEADERS}
-	${libobs_libobs_HEADERS})
+	${libobs_libobs_HEADERS}
+	${libobs_visual_HEADERS})
 
 source_group("callback\\Source Files" FILES ${libobs_callback_SOURCES})
 source_group("callback\\Header Files" FILES ${libobs_callback_HEADERS})
@@ -335,6 +344,8 @@ source_group("media-io\\Source Files" FILES ${libobs_mediaio_SOURCES})
 source_group("media-io\\Header Files" FILES ${libobs_mediaio_HEADERS})
 source_group("util\\Source Files" FILES ${libobs_util_SOURCES})
 source_group("util\\Header Files" FILES ${libobs_util_HEADERS})
+source_group("util\\Source Files" FILES ${libobs_visual_SOURCES})
+source_group("util\\Header Files" FILES ${libobs_visual_HEADERS})
 
 
 add_library(libobs SHARED ${libobs_SOURCES} ${libobs_HEADERS})
