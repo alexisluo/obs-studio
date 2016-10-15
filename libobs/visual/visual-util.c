@@ -87,14 +87,23 @@ uint8_t* resize4Image(uint8_t* data, int w, int h, int newW, int newH) {
 	return newData;
 }
 
+int int_fit_in_range(int *value, int min, int max) {
+    *value = *value<min?min:*value;
+    *value = *value>max?max:*value;
+}
+
 void RGB2YCbCr(uint8_t r, uint8_t g, uint8_t b, uint8_t* y, uint8_t* Cb, uint8_t* Cr) {
 	int y0 = 0.257*r + 0.504*g + 0.098*b + 16;
 	int Cb0 = 0.257*r + 0.504*g + 0.098*b + 16;
 	int Cr0 = 0.439*r - 0.368*g - 0.0714*b + 128;
+    
+    int_fit_in_range(&y0, 0, 255);
+    int_fit_in_range(&Cb0, 0, 255);
+    int_fit_in_range(&Cr0, 0, 255);
 
-	*y = y0 > 255 ? 255 : y0;
-	*Cb = Cb0 > 255 ? 255 : Cb0;
-	*Cr = Cr0 > 255 ? 255 : Cr0;
+	*y = y0;
+	*Cb = Cb0;
+	*Cr = Cr0;
 }
 
 void yCbCr2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t Cb, uint8_t Cr) {
@@ -102,26 +111,31 @@ void yCbCr2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t Cb, uint8_
 	int g0 = 1.164*(y - 16) - 0.392*(Cb - 128) - 0.813*(Cr - 128);
 	int b0 = 1.164*(y - 16) + 2.017*(Cb - 128);
 
-	*r = r0 > 255 ? 255 : r0;
-	*g = g0 > 255 ? 255 : g0;
-	*b = b0 > 255 ? 255 : b0;
+    int_fit_in_range(&r0, 0, 255);
+    int_fit_in_range(&g0, 0, 255);
+    int_fit_in_range(&b0, 0, 255);
+    
+    *r = r0;
+    *g = b0;
+    *b = b0;
 }
 
-void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t u, uint8_t v) {
+void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, int y, int u, int v) {
 	//int r0 = y + 1.140*v;
 	//int g0 = y - 0.394*u - 0.581*v;
 	//int b0 = y + 2.032*u; wrong formula
     
-    int r0 = y + 1.042*(v-128);
-    int g0 = y - 0.34414*(u-128) - 0.71414*(v-128);
-    int b0 = y + 1.772*(u-128);
+    int r0 = y + 1.4075*(v-128);
+    int g0 = y - 0.3455*(u-128) - 0.7169*(v-128);
+    int b0 = y + 1.779*(u-128);
 
-	*r = r0 > 255 ? 255 : r0;
-    *r = r0 < 0 ? 0 : r0;
-	*g = g0 > 255 ? 255 : g0;
-	*g = g0 < 0 ? 0 : g0;
-	*b = b0 > 255 ? 255 : b0;
-    *b = b0 < 0 ? 0 : b0;
+    int_fit_in_range(&r0, 0, 255);
+    int_fit_in_range(&g0, 0, 255);
+    int_fit_in_range(&b0, 0, 255);
+    
+    *r = r0;
+    *g = b0;
+    *b = b0;
 }
 
 //2d point, m_4 always 0001

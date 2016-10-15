@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <obs-internal.h>
 #include <obs-scene.h>
@@ -6,6 +6,7 @@
 #include <media-io/video-io.h>
 
 #include "visual-util.h"
+#include "background-handler.h"
 
 #define TEXT_BG_ANALYSE	           "analyse background"
 #define TEXT_STOP_BG_ANALYSE       "stop analysis"
@@ -24,12 +25,10 @@ struct visual_service {
 	unsigned int height;
 	enum visual_current_stage cur_stage;
 
-	uint8_t* background_mean;
-	uint8_t* background_var;
-	float background_curr_a;
-
 	void(*cached_source)(struct obs_scene_item* item);
 	void(*visual_render)();
+    
+    struct bg_handler *background_handler;
 
 	pthread_mutex_t mutex;
 };

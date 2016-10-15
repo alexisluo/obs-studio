@@ -311,9 +311,11 @@ set(libobs_libobs_HEADERS
 	obs.hpp)
 
 set(libobs_visual_SOURCES
+    visual/background-handler.c
 	visual/visual-service.c
 	visual/visual-util.c)
 set(libobs_visual_HEADERS
+    visual/background-handler.h
 	visual/visual-service.h
 	visual/visual-util.h)
 

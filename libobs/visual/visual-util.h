@@ -14,10 +14,13 @@ uint8_t* resize4Image(uint8_t* data, int w, int h, int newW, int newH);
 void RGB2YCbCr(uint8_t r, uint8_t g, uint8_t b, uint8_t* y, uint8_t* Cb, uint8_t* Cr);
 void yCbCr2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t Cb, uint8_t Cr);
 
-void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t u, uint8_t v);
+//void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t u, uint8_t v);
+void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, int y, int u, int v);
 
 //void RGB2HSV(uint8_t r, uint8_t g, uint8_t b, uint8_t* h, uint8_t* s, uint8_t* v);
 //void HSV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t h, uint8_t s, uint8_t v);
+
+int int_fit_in_range(int *value, int min, int max);
 
 //2dµã Î»ÖÃ¾ØÕó
 void mat4_trans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, int *res_y);

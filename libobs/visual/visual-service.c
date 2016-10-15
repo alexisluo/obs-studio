@@ -1,4 +1,4 @@
-﻿#include "visual-service.h"
+#include "visual-service.h"
 
 struct visual_service *visualService = NULL;
 
@@ -16,6 +16,7 @@ struct visual_service* get_visual_service() {
 	visualService->width = ovi.base_width;
 	visualService->height = ovi.base_height;
 	visualService->cached_data = NULL;
+    visualService->background_handler = NULL;
 
 	if (pthread_mutex_init(&visualService->mutex, NULL) != 0) {
 		free(visualService);
@@ -23,47 +24,6 @@ struct visual_service* get_visual_service() {
 	}
 
 	return visualService;
-}
-
-void analyse_background(uint8_t *framedata) {
-	unsigned int width = visualService->width;
-	unsigned int height = visualService->height;
-
-	if (visualService->background_var == NULL) {
-		visualService->background_var = malloc(sizeof(uint8_t)*width*height * 3);
-		for (uint32_t i = 0; i < height * width * 3; ++i)
-			visualService->background_var[i] = 0;
-	}
-
-	if (visualService->background_mean == NULL) {
-		visualService->background_mean = malloc(sizeof(uint8_t)*width*height*3);
-		for (uint32_t h = 0; h < height; ++h) {
-			for (uint32_t w = 0; w < width; ++w) {
-				for (uint8_t c = 0; c < 3; ++c) {
-					visualService->background_mean[3 * (h*width + w) + c] = framedata[4 * (h*width + w) + c];
-				}
-			}
-		}
-		return;
-	}
-
-	visualService->background_curr_a *= 0.2;
-	float a = visualService->background_curr_a;
-
-	unsigned int mean, data, var, data_var;
-	for (uint32_t h = 0; h < height; ++h) {
-		for (uint32_t w = 0; w < width; ++w) {
-			for (uint8_t c = 0; c < 3; ++c) {
-				mean = visualService->background_mean[3 * (h*width + w) + c];
-				data = framedata[4 * (h*width + w) + c];
-				visualService->background_mean[3 * (h*width + w) + c] = (1 - a)*mean + a*data;
-
-				var = visualService->background_var[3 * (h*width + w) + c];
-				data_var = (framedata[4 * (h*width + w) + c] - mean)*(framedata[4 * (h*width + w) + c] - mean);
-				visualService->background_var[3 * (h*width + w) + c] = (1 - a)*var + a*data_var;
-			}
-		}
-	}
 }
 
 uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
@@ -142,20 +102,6 @@ uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
 
 void cached_source(struct obs_scene_item* item) {
 	struct obs_source* source = item->source;
-	/*
-	if (visualService->cur_stage == VISUAL_STAGE_ANALYSE_BACKGROUND) {
-		if (source->visual_frame_type == CAMERA_FRAME) {
-			uint8_t *framedata = get_source_frame_data(source, &item->draw_transform);
-			analyse_background(framedata);
-
-			if (visualService->cached_data!=NULL)
-				free(visualService->cached_data);
-
-			visualService->cached_data = framedata;
-		}
-		return;
-	}
-	*/
 	struct obs_source_frame *frame = obs_source_get_frame(source);
 	if (NULL == frame)
 		return;
@@ -175,7 +121,7 @@ void cached_source(struct obs_scene_item* item) {
 	memcpy(new_frame->data[0], framedata, 4 * frame_width*frame_height);
 	obs_data_t * settings = obs_source_get_settings(source);
 	enum visual_frame_type visual_frame_type = obs_data_get_int(settings, VISUAL_FRAME_TYPE);
-
+    
 	pthread_mutex_lock(&visualService->mutex);
 	if (visualService->cached_data == NULL) {
 		visualService->cached_data = bmalloc(4 * width*height);
@@ -185,6 +131,19 @@ void cached_source(struct obs_scene_item* item) {
 
 	int tmp_color;
 	const struct matrix4 *trans_mat = &item->draw_transform;
+    
+    //perform background substraction
+    if (visual_frame_type == CAMERA_FRAME) {
+        if (visualService->background_handler == NULL)
+            visualService->background_handler = create_background_handler(frame_width, frame_height);
+        
+        if (visualService->background_handler->height!=frame_height || visualService->background_handler->width!=frame_width) {
+            release_background_handler(visualService->background_handler);
+            visualService->background_handler = create_background_handler(frame_width, frame_height);
+        }
+        
+        background_substraction(visualService->background_handler, framedata);
+    }
 
 	unsigned int h, w, frame_w, frame_h;
 	uint8_t color, frame_color, alpha;
@@ -206,22 +165,6 @@ void cached_source(struct obs_scene_item* item) {
 				else if (visual_frame_type == SCREEN_FRAME) {
 					tmp_color = (int)color + frame_color + color*frame_color / 255;
 					visualService->cached_data[4 * (h*width + w) + c] = tmp_color>255 ? 255 : tmp_color;
-				}
-				else if (visual_frame_type == CAMERA_FRAME) {
-					if (visualService->background_mean != NULL && visualService->background_var != NULL) {
-						diff = frame_color - visualService->background_mean[3 * (h*width + w) + c];
-						bg_configdence = ((int)diff * diff) / visualService->background_var[3 * (h*width + w) + c];
-
-						if (bg_configdence > 1)
-							alpha = 0;
-						else if (bg_configdence > 0.5)
-							alpha = 255 * (2 - bg_configdence / 0.5);
-						else
-							alpha = 255;
-					}
-					else {
-						visualService->cached_data[4 * (h*width + w) + c] = (((int)255 - alpha)*color + alpha*frame_color) / 255;
-					}
 				}
 				else {
 					visualService->cached_data[4 * (h*width + w) + c] = (((int)255 - alpha)*color + alpha*frame_color) / 255;
@@ -249,7 +192,9 @@ void visual_render() {
 	pthread_mutex_unlock(&visualService->mutex);
 }
 
+
 bool visual_analyse_background_clicked(obs_properties_t *ppts, obs_property_t *p, void *data) {
+    /*
 	if (visualService->cur_stage != VISUAL_STAGE_ANALYSE_BACKGROUND) {
 		visualService->cur_stage = VISUAL_STAGE_ANALYSE_BACKGROUND;
 
@@ -270,4 +215,5 @@ bool visual_analyse_background_clicked(obs_properties_t *ppts, obs_property_t *p
 	}
 
 	return true;
+     */
 }
