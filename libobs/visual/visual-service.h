@@ -7,6 +7,7 @@
 
 #include "visual-util.h"
 #include "background-handler.h"
+#include "frame-process.h"
 
 #define TEXT_BG_ANALYSE	           "analyse background"
 #define TEXT_STOP_BG_ANALYSE       "stop analysis"
@@ -23,12 +24,18 @@ struct visual_service {
 	uint8_t* cached_data;
 	unsigned int width;
 	unsigned int height;
+    
+    uint8_t* cached_camera_data;
+    unsigned int camera_width;
+    unsigned int camera_height;
+    
 	enum visual_current_stage cur_stage;
 
 	void(*cached_source)(struct obs_scene_item* item);
 	void(*visual_render)();
     
     struct bg_handler *background_handler;
+    struct bounding_box *bd_box;
 
 	pthread_mutex_t mutex;
 };

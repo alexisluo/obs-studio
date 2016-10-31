@@ -7,14 +7,14 @@ struct bg_handler* create_background_handler(unsigned int width, unsigned int he
     handler->height = height;
     handler->width = width;
     
-    handler->threshold = 60;
-    handler->sample_num = 15;
+    handler->threshold = 15;
+    handler->sample_num = 12;
     handler->sample_rate = 0.2;
-    handler->radius = 3;
+    handler->radius = 1;
     
-    handler->MIN_BG_COUNT = 3;
-    handler->MAX_FG_COUNT = 200;
-    handler->bg_samples = bmalloc(sizeof(uint8_t)*width*height * handler->sample_num*3);
+    handler->MIN_BG_COUNT = 5;
+    handler->MAX_FG_COUNT = 100;
+    handler->bg_samples = bmalloc(sizeof(uint8_t)*width*height * handler->sample_num);
     handler->fg_count = bmalloc(sizeof(unsigned int)*width*height);
     for (int i=0; i<width*height; ++i) {
         handler->fg_count[i] = 0;
@@ -41,16 +41,19 @@ static unsigned int find_random_neighbor_pos(int w, int h, unsigned int radius, 
     *r_h = h+hr;
 }
 
-void background_substraction(struct bg_handler* handler, uint8_t *framedata) {
+uint8_t* background_substraction(struct bg_handler* handler, uint8_t *framedata) {
     if (handler == NULL) {
-        return;
+        return NULL;
     }
+    
     unsigned int pos;
     unsigned int width = handler->width;
     unsigned int height = handler->height;
     int sample_rate = handler->sample_rate;
     int sample_num = handler->sample_num;
     int rw,rh;
+    
+    uint8_t* bg_mask = malloc(sizeof(uint8_t)*width*height);
     if (handler->status == MODEL_NOT_INIT) {
         for (uint32_t h = 0; h < height; ++h) {
             for (uint32_t w = 0; w < width; ++w) {
@@ -59,44 +62,39 @@ void background_substraction(struct bg_handler* handler, uint8_t *framedata) {
                     int_fit_in_range(&rw, 0, width-1);
                     int_fit_in_range(&rh, 0, height-1);
                     pos = rh*width+rw;
-                    memcpy(&handler->bg_samples[(pos*sample_num+s)*3], &framedata[pos*4], 3);
+                    handler->bg_samples[pos*sample_num+s] = framedata[pos];
                 }
             }
         }
         handler->status = MODEL_PROCESS;
-        return;
+        return NULL;
     }
     
     srand(time(NULL));
-    int diff, ra, fg_count, bg_count;
+    int diff, ra, fg_count, bg_count, totol_bg_count;
+    totol_bg_count = 0;
     for (uint32_t h = 0; h < height; ++h) {
         for (uint32_t w = 0; w < width; ++w) {
-            
+            pos = h*width+w;
             bg_count = 0;
             for (uint32_t s = 0; s < sample_num; ++s) {
-                pos = h*width+w;
-                for (uint8_t c=0; c<3; ++c) {
-                    diff = abs( (int)framedata[pos*4+c] - handler->bg_samples[(pos*sample_num+s)*3+c] );
-                    if (diff>handler->threshold) {
-                        bg_count--;
-                        break;
-                    }
+                diff = abs( (int)framedata[pos] - (int)handler->bg_samples[pos*sample_num+s]);
+                if (diff < handler->threshold) {
+                    bg_count++;
                 }
-                bg_count++;
             }
             //blog(LOG_INFO, "Background found diff: %d", diff);
-                
+
             if (bg_count > handler->MIN_BG_COUNT || handler->fg_count[pos] > handler->MAX_FG_COUNT) {
-                framedata[pos*4] = 255;
-                framedata[pos*4+1] = 0;
-                framedata[pos*4+2] = 0;
-                framedata[pos*4+3] = 255; //bg alpha = 0
+                bg_mask[pos] = 0;
+                totol_bg_count++;
+                //blog(LOG_INFO, "bgcount: %d", bg_count);
                 
                 //update sample pixel
                 ra = rand()%100;
                 if (ra < sample_rate*100) {
                     ra = rand()%sample_num;
-                    memcpy(&handler->bg_samples[(pos*sample_num+ra)*3], &framedata[pos*4], 3);
+                    handler->bg_samples[pos*sample_num+ra] = framedata[pos];
                 }
                 //update pixel neighbors
                 for (int n=0; n<handler->radius * handler->radius; ++n) {
@@ -107,15 +105,20 @@ void background_substraction(struct bg_handler* handler, uint8_t *framedata) {
                         int_fit_in_range(&rh, 0, height-1);
                         pos = rh*width+rw;
                         ra = rand()%sample_num;
-                        memcpy(&handler->bg_samples[(pos*sample_num+ra)*3], &framedata[pos*4], 3);
+                        handler->bg_samples[pos*sample_num+ra] = framedata[pos];
                     }
                 }
                 
-                break;
                 handler->fg_count[pos] = 0;
             } else {
-                //handler->fg_count[pos]++;
+                handler->fg_count[pos]++;
             }
         }
     }
+    
+    //if bg section is too small, reinit
+    if (totol_bg_count < width*height/4)
+        handler->status = MODEL_NOT_INIT;
+    
+    return bg_mask;
 }

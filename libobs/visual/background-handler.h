@@ -24,4 +24,4 @@ struct bg_handler {
 
 EXPORT struct bg_handler* create_background_handler(unsigned int width, unsigned int height);
 EXPORT void release_background_handler(struct bg_handler* handler);
-EXPORT void background_substraction(struct bg_handler* handler, uint8_t *framedata);
+EXPORT uint8_t* background_substraction(struct bg_handler* handler, uint8_t *framedata);

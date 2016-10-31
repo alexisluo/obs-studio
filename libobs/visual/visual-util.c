@@ -38,22 +38,6 @@ void check_video_format(enum video_format format) {
 	}
      */
 }
-
-/*
-LPWSTR intToW(int n, int len) {
-	wchar_t *wc = malloc(sizeof(wchar_t)*len);
-	_itow_s(n, wc, len, len);
-
-	return wc;
-}
-
-LPWSTR charToW(const char* str) {
-	LPWSTR wchar = malloc(sizeof(wchar_t)*(strlen(str) + 1));
-	MultiByteToWideChar(CP_UTF8, 0, str, strlen(str), wchar, strlen(str));
-	wchar[strlen(wchar)] = '\0';
-	return wchar;
-}
-*/
  
 int str2Int(char* str) {
 	unsigned int res, i;
@@ -107,9 +91,21 @@ void RGB2YCbCr(uint8_t r, uint8_t g, uint8_t b, uint8_t* y, uint8_t* Cb, uint8_t
 }
 
 void yCbCr2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t Cb, uint8_t Cr) {
+    //hdtv half range
+    //int r0 = 1.164*(y - 16) + 1.793*(Cr - 128);
+    //int g0 = 1.164*(y - 16) - 0.213*(Cb - 128) - 0.533*(Cr - 128);
+    //int b0 = 1.164*(y - 16) + 2.112*(Cb - 128);
+    
+    //hdtv full range turn red
+    int r0 = y + 1.402*(Cr - 128);
+    int g0 = y - 0.344*(Cb - 128) - 0.714*(Cr - 128);
+    int b0 = y + 1.772*(Cb - 128);
+    
+    /*
 	int r0 = 1.164*(y - 16) + 1.596*(Cr - 128);
 	int g0 = 1.164*(y - 16) - 0.392*(Cb - 128) - 0.813*(Cr - 128);
 	int b0 = 1.164*(y - 16) + 2.017*(Cb - 128);
+     */
 
     int_fit_in_range(&r0, 0, 255);
     int_fit_in_range(&g0, 0, 255);
@@ -121,10 +117,11 @@ void yCbCr2RGB(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t y, uint8_t Cb, uint8_
 }
 
 void YUV2RGB(uint8_t* r, uint8_t* g, uint8_t* b, int y, int u, int v) {
-	//int r0 = y + 1.140*v;
-	//int g0 = y - 0.394*u - 0.581*v;
-	//int b0 = y + 2.032*u; wrong formula
-    
+    /*
+	//int r0 = y + 1.13983*(v-128);
+	//int g0 = y - 0.39465*(u-128) - 0.58060*(v-128);
+	//int b0 = y + 2.03211*(u-128); //wrong formula
+    */
     int r0 = y + 1.4075*(v-128);
     int g0 = y - 0.3455*(u-128) - 0.7169*(v-128);
     int b0 = y + 1.779*(u-128);

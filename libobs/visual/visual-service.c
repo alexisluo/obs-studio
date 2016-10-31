@@ -1,4 +1,5 @@
 #include "visual-service.h"
+#include <stdlib.h>
 
 struct visual_service *visualService = NULL;
 
@@ -16,6 +17,10 @@ struct visual_service* get_visual_service() {
 	visualService->width = ovi.base_width;
 	visualService->height = ovi.base_height;
 	visualService->cached_data = NULL;
+    
+    visualService->cached_camera_data = NULL;
+    visualService->camera_width = 0;
+    visualService->camera_height = 0;
     visualService->background_handler = NULL;
 
 	if (pthread_mutex_init(&visualService->mutex, NULL) != 0) {
@@ -24,6 +29,46 @@ struct visual_service* get_visual_service() {
 	}
 
 	return visualService;
+}
+
+uint8_t* get_yuv_y_channel(struct obs_source_frame *frame) {
+    if (!frame)
+        return NULL;
+    
+    enum video_format format = frame->format;
+    unsigned int width, height;
+    width = frame->width;
+    height = frame->height;
+    
+    uint8_t* data = malloc(sizeof(uint8_t)*width*height);
+    unsigned int ypos, pos;
+    unsigned int r, g, b, y, Cb, Cr;
+    for (uint32_t h = 0; h < height; ++h) {
+        for (uint32_t w = 0; w < width; ++w) {
+            if (frame->format == VIDEO_FORMAT_BGRA) {
+                r = frame->data[0][4 * (h*width + w)];
+                g= frame->data[0][4 * (h*width + w) + 1];
+                b = frame->data[0][4 * (h*width + w) + 2];
+                RGB2YCbCr(r, g, b, &y, &Cb, &Cr);
+                data[h*width+w] = y;
+            }
+            else if (frame->format == VIDEO_FORMAT_YUY2) {
+                pos = h*width + w;
+                ypos = 2 * pos;
+                data[h*width+w] =frame->data[0][ypos];
+            }
+            else if (frame->format == VIDEO_FORMAT_UYVY) {
+                pos = h*width +w;
+                ypos = 2 * pos+1;
+                data[h*width+w] =frame->data[0][ypos];
+                
+            }
+            else if (frame->format == VIDEO_FORMAT_I420) {
+                data[h*width+w] = frame->data[0][h*width + w];
+            }
+        }
+    }
+    return data;
 }
 
 uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
@@ -64,13 +109,21 @@ uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
             else if (frame->format == VIDEO_FORMAT_UYVY) {
                 pos = h*width + w;
                 ypos = 2 * pos+1;
-                upos = (pos % 2 == 0) ? ypos - 1 : ypos - 3;
-                vpos = (pos % 2 == 0) ? ypos + 1 : ypos - 1;
+                if (pos%2==0) {
+                    upos = ypos-1;
+                    vpos = ypos+1;
+                } else {
+                    upos = ypos-3;
+                    vpos = ypos-1;
+                }
+                //upos = (pos % 2 == 0) ? ypos - 1 : ypos - 3;
+                //vpos = (pos % 2 == 0) ? ypos + 1 : ypos - 1;
                 
                 y = frame->data[0][ypos];
                 u = frame->data[0][upos];
                 v = frame->data[0][vpos];
-                YUV2RGB(&r, &g, &b, y, u, v);
+                //YUV2RGB(&r, &g, &b, y, u, v);
+                yCbCr2RGB(&r, &g, &b, y, u, v);
                 
                 data[4 * (h*width + w)] = b;
                 data[4 * (h*width + w) + 1] = g;
@@ -112,6 +165,7 @@ void cached_source(struct obs_scene_item* item) {
 	unsigned int frame_height = frame->height;
 
 	uint8_t *framedata = get_source_frame_data(frame);
+    uint8_t *yframedata = get_yuv_y_channel(frame);
 	obs_source_release_frame(source, frame);
 
 	if (NULL == framedata)
@@ -132,20 +186,70 @@ void cached_source(struct obs_scene_item* item) {
 	int tmp_color;
 	const struct matrix4 *trans_mat = &item->draw_transform;
     
-    //perform background substraction
+    int pos;
     if (visual_frame_type == CAMERA_FRAME) {
-        if (visualService->background_handler == NULL)
-            visualService->background_handler = create_background_handler(frame_width, frame_height);
-        
-        if (visualService->background_handler->height!=frame_height || visualService->background_handler->width!=frame_width) {
-            release_background_handler(visualService->background_handler);
-            visualService->background_handler = create_background_handler(frame_width, frame_height);
+        if (visualService->cached_camera_data == NULL) {
+            visualService->camera_width = frame_width;
+            visualService->camera_height = frame_height;
+            visualService->cached_camera_data = malloc(sizeof(uint8_t)*frame_width*frame_height*3);
         }
         
-        background_substraction(visualService->background_handler, framedata);
+        if (visualService->camera_width!=frame_width || visualService->camera_height!=frame_height) {
+            free(visualService->cached_camera_data);
+            visualService->camera_width = frame_width;
+            visualService->camera_height = frame_height;
+            visualService->cached_camera_data = malloc(sizeof(uint8_t)*frame_width*frame_height*3);
+        }
+    }
+    
+    //get motion mask
+    uint8_t *motion_mask = NULL;
+    if (visual_frame_type == CAMERA_FRAME) {
+        uint8_t* rgbdata = malloc(sizeof(uint8_t)*frame_width*frame_height*3);
+        for (int h = 0; h < frame_height; ++h) {
+            for (int w = 0; w < frame_width; ++w) {
+                pos = h*frame_width+w;
+                memcpy(&rgbdata[pos*3], &framedata[pos*4], 3);
+            }
+        }
+        
+        motion_mask = find_motion_mask(visualService->cached_camera_data, rgbdata, frame_width, frame_height, 3);
+        if (visualService->bd_box!=NULL)
+            free(visualService->bd_box);
+        visualService->bd_box = find_bounding_box(motion_mask, frame_width, frame_height, visualService->bd_box);
+        
+        //cached camera data
+        memcpy(visualService->cached_camera_data, rgbdata, 3*frame_width*frame_height);
+        free(rgbdata);
+    }
+    
+    unsigned int h, w, frame_w, frame_h;
+    struct bounding_box *bd_box = visualService->bd_box;
+    if (motion_mask != NULL && bd_box!=NULL) {
+        //draw bounding box
+        uint8_t blueColor[4];
+        blueColor[0] = 255;
+        blueColor[1] = 0;
+        blueColor[2] = 0;
+        blueColor[3] = 255;
+        
+        int h1 = bd_box->left_top.y, h2 = bd_box->right_bot.y;
+        int w1 = bd_box->left_top.x, w2 = bd_box->right_bot.x;
+        
+        for (h=h1; h<h2; ++h) {
+            memcpy(&framedata[4 * (h*frame_width + w1)], blueColor, 4);
+            memcpy(&framedata[4 * (h*frame_width + w2)], blueColor, 4);
+            motion_mask[h*frame_width + w1] = 1;
+            motion_mask[h*frame_width + w2] = 1;
+        }
+        for (w=w1; w<w2; ++w) {
+            memcpy(&framedata[4 * (h1*frame_width + w)], blueColor, 4);
+            memcpy(&framedata[4 * (h2*frame_width + w)], blueColor, 4);
+            motion_mask[h1*frame_width + w] = 1;
+            motion_mask[h2*frame_width + w] = 1;
+        }
     }
 
-	unsigned int h, w, frame_w, frame_h;
 	uint8_t color, frame_color, alpha;
 	uint8_t diff, bg_configdence;
 	for (h = 0; h < height; ++h) {
@@ -154,6 +258,11 @@ void cached_source(struct obs_scene_item* item) {
 			if (frame_w < 0 || frame_w >= frame_width || frame_h < 0 || frame_h >= frame_height)
 				continue;
 
+            //find motion interest
+            if (motion_mask!=NULL) {
+                framedata[4 * (frame_h*frame_width + frame_w) + 3] *= motion_mask[frame_h*frame_width + frame_w];
+            }
+            
 			alpha = framedata[4 * (frame_h*frame_width + frame_w) + 3];
 			for (uint8_t c = 0; c < 3; ++c) {
 				color = visualService->cached_data[4 * (h*width + w) + c];
@@ -175,12 +284,18 @@ void cached_source(struct obs_scene_item* item) {
 			visualService->cached_data[4 * (h*width + w) + 3] = 255;
 		}
 	}
+    
 	pthread_mutex_unlock(&visualService->mutex);
 
 	pthread_mutex_lock(&source->async_mutex);
 	source->visual_cur_async_frame = new_frame;
 	pthread_mutex_unlock(&source->async_mutex);
 	bfree(framedata);
+
+    if (yframedata!=NULL)
+        free(yframedata);
+    //if (bg_mask!=NULL)
+    //    free(bg_mask);
 }
 
 void visual_render() {
