@@ -15,6 +15,9 @@
 #define VISUAL_FRAME_TYPE		   "visual_frame_type"
 #define VISUAL_FRAME_TYPE_DESCRIPTION 		   "visual_frame_type_description"
 
+#define VISUAL_FRAME_FOCUS_TYPE     "visual_frame_focus_type"
+#define VISUAL_FRAME_FOCUS_DESCRIPTION      "visual_frame_focus_description"
+
 enum visual_current_stage {
     VISUAL_STAGE_SHOW,
     VISUAL_STAGE_ANALYSE_BACKGROUND
@@ -26,6 +29,7 @@ struct visual_service {
 	unsigned int height;
     
     uint8_t* cached_camera_data;
+    struct matrix4 *camera_trans_mat;
     unsigned int camera_width;
     unsigned int camera_height;
     
@@ -35,7 +39,7 @@ struct visual_service {
 	void(*visual_render)();
     
     struct bg_handler *background_handler;
-    struct bounding_box *bd_box;
+    struct bounding_box bd_box;
 
 	pthread_mutex_t mutex;
 };

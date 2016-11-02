@@ -677,8 +677,17 @@ void source_add_visual_properties(obs_properties_t *properties) {
 	obs_property_list_add_int(p, "enviroment", ENVIROMENT_FRAME);
 	obs_property_list_add_int(p, "camera", CAMERA_FRAME);
 
-	obs_properties_add_button(properties, TEXT_BG_ANALYSE, TEXT_BG_ANALYSE,
-		visual_analyse_background_clicked);
+    
+    p = obs_properties_add_list(properties, VISUAL_FRAME_FOCUS_TYPE, VISUAL_FRAME_FOCUS_DESCRIPTION,
+                                OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(p, "normal", NORMAL_FOCUS);
+    obs_property_list_add_int(p, "boundingbox", BOUNDING_BOX_FOCUS);
+    obs_property_list_add_int(p, "boundingbox resize", BOUNDING_BOX_RESIZE_FOCUS);
+    obs_property_list_add_int(p, "motion mask", MOTION_MASK_FOCUS);
+    
+
+	//obs_properties_add_button(properties, TEXT_BG_ANALYSE, TEXT_BG_ANALYSE,
+	//	visual_analyse_background_clicked);
 }
 
 obs_properties_t *obs_get_source_properties(const char *id)

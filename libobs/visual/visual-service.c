@@ -22,6 +22,7 @@ struct visual_service* get_visual_service() {
     visualService->camera_width = 0;
     visualService->camera_height = 0;
     visualService->background_handler = NULL;
+    memset(&visualService->bd_box, 0, sizeof(int)*6);
 
 	if (pthread_mutex_init(&visualService->mutex, NULL) != 0) {
 		free(visualService);
@@ -153,6 +154,38 @@ uint8_t* get_source_frame_data(struct obs_source_frame *frame) {
 	return data;
 }
 
+void change_frame_focus(enum visual_frame_focus_type focus_type, struct obs_scene_item* item, int frame_width, int frame_height) {
+    const struct matrix4 *trans_mat = &item->draw_transform;
+    int height=0, width=0, left=0, top=0;
+    float scalex=0, scaley=0;
+    struct bounding_box *bd_box = &visualService->bd_box;
+    
+    switch (focus_type) {
+        case BOUNDING_BOX_RESIZE_FOCUS:
+            if (bd_box == NULL)
+                return;
+            
+            width = bd_box->right_bot.x - bd_box->left_top.x + 1;
+            height = bd_box->right_bot.y - bd_box->left_top.y + 1;
+            left = bd_box->left_top.x;
+            top = bd_box->left_top.y;
+            scalex = (float)width/frame_width;
+            scaley = (float)height/frame_height;
+            
+            struct matrix4 temp;
+            vec4_set(&temp.x, scalex, 0.0f, 0.0f, 0.0f);
+            vec4_set(&temp.y, 0.0f, scaley, 0.0f, 0.0f);
+            vec4_set(&temp.z, 0.0f, 0.0f, 1.0, 0.0f);
+            vec4_set(&temp.t, left, top, 0.0f, 1.0f);
+            matrix4_copy(trans_mat, &temp);
+            
+            break;
+            
+        default:
+            break;
+    }
+}
+
 void cached_source(struct obs_scene_item* item) {
 	struct obs_source* source = item->source;
 	struct obs_source_frame *frame = obs_source_get_frame(source);
@@ -175,6 +208,7 @@ void cached_source(struct obs_scene_item* item) {
 	memcpy(new_frame->data[0], framedata, 4 * frame_width*frame_height);
 	obs_data_t * settings = obs_source_get_settings(source);
 	enum visual_frame_type visual_frame_type = obs_data_get_int(settings, VISUAL_FRAME_TYPE);
+    enum visual_frame_focus_type frame_focus_type = obs_data_get_int(settings, VISUAL_FRAME_FOCUS_TYPE);
     
 	pthread_mutex_lock(&visualService->mutex);
 	if (visualService->cached_data == NULL) {
@@ -204,6 +238,7 @@ void cached_source(struct obs_scene_item* item) {
     
     //get motion mask
     uint8_t *motion_mask = NULL;
+    struct bounding_box *bd_box = NULL; //visualService->bd_box;
     if (visual_frame_type == CAMERA_FRAME) {
         uint8_t* rgbdata = malloc(sizeof(uint8_t)*frame_width*frame_height*3);
         for (int h = 0; h < frame_height; ++h) {
@@ -214,41 +249,29 @@ void cached_source(struct obs_scene_item* item) {
         }
         
         motion_mask = find_motion_mask(visualService->cached_camera_data, rgbdata, frame_width, frame_height, 3);
-        if (visualService->bd_box!=NULL)
-            free(visualService->bd_box);
-        visualService->bd_box = find_bounding_box(motion_mask, frame_width, frame_height, visualService->bd_box);
+        
+        bd_box = find_bounding_box(motion_mask, frame_width, frame_height, &visualService->bd_box);
+        if (bd_box != NULL) {
+            struct point* left_top = &bd_box->left_top;
+            struct point* right_bot = &bd_box->right_bot;
+            mat4_trans(trans_mat, &left_top->x, &left_top->y, &visualService->bd_box.left_top.x, &visualService->bd_box.left_top.y);
+            mat4_trans(trans_mat, &right_bot->x, &right_bot->y, &visualService->bd_box.right_bot.x, &visualService->bd_box.right_bot.y);
+        }
+        free(bd_box);
         
         //cached camera data
         memcpy(visualService->cached_camera_data, rgbdata, 3*frame_width*frame_height);
         free(rgbdata);
     }
     
-    unsigned int h, w, frame_w, frame_h;
-    struct bounding_box *bd_box = visualService->bd_box;
-    if (motion_mask != NULL && bd_box!=NULL) {
-        //draw bounding box
-        uint8_t blueColor[4];
-        blueColor[0] = 255;
-        blueColor[1] = 0;
-        blueColor[2] = 0;
-        blueColor[3] = 255;
-        
-        int h1 = bd_box->left_top.y, h2 = bd_box->right_bot.y;
-        int w1 = bd_box->left_top.x, w2 = bd_box->right_bot.x;
-        
-        for (h=h1; h<h2; ++h) {
-            memcpy(&framedata[4 * (h*frame_width + w1)], blueColor, 4);
-            memcpy(&framedata[4 * (h*frame_width + w2)], blueColor, 4);
-            motion_mask[h*frame_width + w1] = 1;
-            motion_mask[h*frame_width + w2] = 1;
-        }
-        for (w=w1; w<w2; ++w) {
-            memcpy(&framedata[4 * (h1*frame_width + w)], blueColor, 4);
-            memcpy(&framedata[4 * (h2*frame_width + w)], blueColor, 4);
-            motion_mask[h1*frame_width + w] = 1;
-            motion_mask[h2*frame_width + w] = 1;
-        }
+    //follow the mask or bounding box
+    if (visual_frame_type == CAMERA_FRAME)
+        visualService->camera_trans_mat = &item->draw_transform;
+    if (visual_frame_type != CAMERA_FRAME && frame_focus_type != NORMAL_FOCUS) {
+        change_frame_focus(frame_focus_type, item, frame_width, frame_height);
     }
+    
+    unsigned int h, w, frame_w, frame_h;
 
 	uint8_t color, frame_color, alpha;
 	uint8_t diff, bg_configdence;
@@ -260,7 +283,7 @@ void cached_source(struct obs_scene_item* item) {
 
             //find motion interest
             if (motion_mask!=NULL) {
-                framedata[4 * (frame_h*frame_width + frame_w) + 3] *= motion_mask[frame_h*frame_width + frame_w];
+                //framedata[4 * (frame_h*frame_width + frame_w) + 3] *= motion_mask[frame_h*frame_width + frame_w];
             }
             
 			alpha = framedata[4 * (frame_h*frame_width + frame_w) + 3];
