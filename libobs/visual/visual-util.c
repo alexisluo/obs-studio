@@ -1,6 +1,5 @@
 #include "visual-util.h"
 
-
 void check_video_format(enum video_format format) {
     /*
 	if (format == VIDEO_FORMAT_NONE) {
@@ -160,6 +159,58 @@ void mat4_invtrans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, 
 	mat24 = trans_mat->t.y;
 
 	float divsior = mat11*mat22 - mat21*mat12;
-	*res_x = ((float)mat12* *y - mat22* *x + mat14*mat22 - mat24*mat12) / (-divsior);
-	*res_y = ((float)mat11* *y - mat21* *x + mat14*mat21 - mat24*mat11) / divsior;
+	*res_x = round( (mat12* *y - mat22* *x + mat14*mat22 - mat24*mat12) / (-divsior) );
+	*res_y = round( (mat11* *y - mat21* *x + mat14*mat21 - mat24*mat11) / divsior );
+}
+
+
+void setColor(uint8_t* dst, uint8_t b, uint8_t g, uint8_t r) {
+    *(dst) = b;
+    *(dst+1) = g;
+    *(dst+2) = r;
+}
+
+uint8_t* get_palette() {
+    int color_num = 7;
+    uint8_t* palette = malloc(sizeof(uint8_t)*3*color_num);
+    
+    setColor(palette, 0, 0, 0);
+    setColor(&palette[3], 0, 255, 191);
+    setColor(&palette[6], 0, 255, 255);
+    setColor(&palette[9], 0, 191, 255);
+    setColor(&palette[12], 0, 128, 255);
+    setColor(&palette[15], 0, 64, 255);
+    setColor(&palette[18], 0, 0, 255);
+    
+    return palette;
+}
+
+/* color pixel
+ * dst: the piexel being colored
+ * level: the which level the pixel belong to
+ * max_level: how many level in all
+ */
+void color_bgr_pixel(uint8_t* dst, int level, int max_level) {
+    float alpha = (float)level/max_level;
+    
+    //using default color
+    if (max_level < 7) {
+        uint8_t* palette = get_palette();
+        uint8_t* color = &palette[level*3];
+        
+        *(dst) = *(dst)*(1-alpha) + *(color)*alpha;
+        *(dst+1) = *(dst+1)*(1-alpha) + *(color+1)*alpha;
+        *(dst+2) = *(dst+2)*(1-alpha) + *(color+2)*alpha;
+        //memcpy(dst, &palette[level*3], 3);
+        free(palette);
+    } else {
+        uint8_t color[3];
+        color[0] = 0;
+        color[1] = round((float)(max_level-level) * 255/max_level);
+        color[2] = round((float)level * 255/max_level);
+        
+        *(dst) = *(dst)*(1-alpha) + *(color)*alpha;
+        *(dst+1) = *(dst+1)*(1-alpha) + *(color+1)*alpha;
+        *(dst+2) = *(dst+2)*(1-alpha) + *(color+2)*alpha;
+    }
 }

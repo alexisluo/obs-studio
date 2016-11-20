@@ -531,6 +531,13 @@ static void scene_video_render(void *data, gs_effect_t *effect)
 
 		if (source_size_changed(item))
 			update_item_transform(item);
+        
+        if (!item->user_visible) {
+            if (visualService != NULL)
+                viusal_set_item_visible(item);
+
+            //blog(LOG_INFO, obs_source_get_name(item->source));
+        }
 
 		if (item->user_visible) {
 			if (visualService != NULL)

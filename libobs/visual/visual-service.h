@@ -24,28 +24,38 @@ enum visual_current_stage {
 };
 
 struct visual_service {
+    //cached whole data
 	uint8_t* cached_data;
 	unsigned int width;
 	unsigned int height;
     
-    uint8_t* cached_camera_data;
+    // cached camera data
+    DARRAY(uint8_t*) cached_camera_data;
     struct matrix4 *camera_trans_mat;
     unsigned int camera_width;
     unsigned int camera_height;
     
 	enum visual_current_stage cur_stage;
 
+    //render function
 	void(*cached_source)(struct obs_scene_item* item);
 	void(*visual_render)();
     
-    struct bg_handler *background_handler;
+    pthread_mutex_t mutex;
+    
+    //control data
+    uint8_t *cached_motion_mask;
+    
     struct bounding_box bd_box;
-
-	pthread_mutex_t mutex;
+    
+    
+    //not using currently
+    struct bg_handler *background_handler;
 };
 
 EXPORT struct visual_service* get_visual_service();
 EXPORT void cached_source(struct obs_scene_item* item);
 EXPORT void visual_render();
+EXPORT void viusal_set_item_visible(obs_sceneitem_t *item);
 
 EXPORT bool visual_analyse_background_clicked(obs_properties_t * ppts, obs_property_t *p, void *data);

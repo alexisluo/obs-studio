@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-//
+//resize frame
 uint8_t* resize_frame(uint8_t* data, int width, int height, int new_width, int new_height, int channel) {
     uint8_t* newData = malloc(sizeof(uint8_t) * channel * new_width*new_height);
     float wDiv = (float)width / new_width;
@@ -20,6 +20,20 @@ uint8_t* resize_frame(uint8_t* data, int width, int height, int new_width, int n
     return newData;
 }
 
+//reduce channel
+uint8_t* reduce_frame_channel(uint8_t* data, int width, int height, int dst_channel, int src_channel) {
+    uint8_t* new_data = malloc(sizeof(uint8_t) * dst_channel * width*height);
+    int pos;
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
+            pos = h*width+w;
+            memcpy(&new_data[pos*dst_channel], &data[pos*src_channel], dst_channel);
+        }
+    }
+    return new_data;
+}
+
+
 //edge compare
 int edge_compare(const void * a, const void * b) {
     const struct edge* e1 = (const struct edge*)a;
@@ -33,54 +47,6 @@ int edge_compare(const void * a, const void * b) {
 int compare (const void * a, const void * b)
 {
     return ( *(int*)a - *(int*)b );
-}
-
-//average filter
-void average_smooth(uint8_t* data, int width, int height) {
-    int smooth_r =1;
-    int boxsum,kh,kw;
-    
-    for (int h = 0; h < height; ++h) {
-        for (int w = 0; w < width; ++w) {
-            boxsum = 0;
-            
-            for (int m=-smooth_r; m<smooth_r+1; ++m) {
-                for (int n=-smooth_r; n<smooth_r+1; ++n) {
-                    kh = h+m;
-                    kw = w+n;
-                    int_fit_in_range(&kw, 0, width-1);
-                    int_fit_in_range(&kh, 0, height-1);
-                    boxsum += data[kh*width+kw];
-                }
-            }
-            boxsum /= (2*smooth_r+1)*(2*smooth_r+1);
-            data[h*width+w] = boxsum;
-        }
-    }
-}
-
-//median filter
-void median_smooth(uint8_t* data, int width, int height) {
-    int smooth_r = 1;
-    int kw,kh, count;
-    uint8_t *arr = malloc(sizeof(uint8_t)*(2*smooth_r+1)*(2*smooth_r+1));
-    for (int h = 0; h < height; ++h) {
-        for (int w = 0; w < width; ++w) {
-            count = 0;
-            for (int m=-smooth_r; m<smooth_r+1; ++m) {
-                for (int n=-smooth_r; n<smooth_r+1; ++n) {
-                    kh = h+m;
-                    kw = w+n;
-                    int_fit_in_range(&kw, 0, width-1);
-                    int_fit_in_range(&kh, 0, height-1);
-                    arr[count] = data[kh*width+kw];
-                    ++count;
-                }
-            }
-            qsort(arr, (2*smooth_r+1)*(2*smooth_r+1), sizeof(uint8_t), compare);
-            data[h*width+w] = arr[(int)(2*smooth_r+1)*(2*smooth_r+1)/2];
-        }
-    }
 }
 
 //caluclate integral frame
@@ -116,6 +82,8 @@ int* calculate_integral_frame(uint8_t* data, int width, int height, int channel)
 
 //calculate grid frame
 int* calculate_grid_frame(uint8_t* data, int width, int height, int grid_width, int grid_height, int channel) {
+    if(data == NULL) return NULL;
+    
     int grid_w_num = ceil((float)width/grid_width);
     int grid_h_num = ceil((float)height/grid_height);
     
@@ -148,6 +116,53 @@ int* calculate_grid_frame(uint8_t* data, int width, int height, int grid_width, 
     }
     free(integral_frame);
     return grid_frame;
+}
+
+//average filter
+void average_smooth(uint8_t* data, int width, int height, int channel) {
+    int* integral_frame = calculate_integral_frame(data, width, height, channel);
+    
+    int r = 10; //smooth radius
+    int boxsum,kh,kw;
+    int area_a, area_b, area_c, area_d;
+    for (int h = r; h < height-r; ++h) {
+        for (int w = r; w < width-r; ++w) {
+            
+            for (int c=0; c<channel; ++c) {
+                area_a = integral_frame[ channel*( (h-r)*width+w-r) + c ];
+                area_b = integral_frame[ channel*( (h-r)*width+w+r) + c ];
+                area_c = integral_frame[ channel*( (h+r)*width+w-r) + c ];
+                area_d = integral_frame[ channel*( (h+r)*width+w+r) + c ];
+                data[channel*(h*width+w)+c] = (area_d - area_b - area_c + area_a)/ ( (2*r+1)*(2*r+1) );
+            }
+            
+        }
+    }
+    free(integral_frame);
+}
+
+//median filter
+void median_smooth(uint8_t* data, int width, int height) {
+    int smooth_r = 1;
+    int kw,kh, count;
+    uint8_t *arr = malloc(sizeof(uint8_t)*(2*smooth_r+1)*(2*smooth_r+1));
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
+            count = 0;
+            for (int m=-smooth_r; m<smooth_r+1; ++m) {
+                for (int n=-smooth_r; n<smooth_r+1; ++n) {
+                    kh = h+m;
+                    kw = w+n;
+                    int_fit_in_range(&kw, 0, width-1);
+                    int_fit_in_range(&kh, 0, height-1);
+                    arr[count] = data[kh*width+kw];
+                    ++count;
+                }
+            }
+            qsort(arr, (2*smooth_r+1)*(2*smooth_r+1), sizeof(uint8_t), compare);
+            data[h*width+w] = arr[(int)(2*smooth_r+1)*(2*smooth_r+1)/2];
+        }
+    }
 }
 
 void erode(uint8_t* data, int width, int height, int channel) {
@@ -199,13 +214,13 @@ void dilate(uint8_t* data, int width, int height, int channel) {
     free(old_data);
 }
 
-
-struct bounding_box* find_bounding_box(uint8_t* data, int width, int height, struct bounding_box *pre_bounding_box) {
-    //struct bounding_box default_bounding_box = { {0, 0}, {width, height}, { width/2, height/2 } };
-    int grid_width = 20;
-    int grid_height = 20;
+void tune_motion_mask(uint8_t* motion_mask, int width, int height) {
+    if(motion_mask == NULL) return;
     
-    int* grid_frame = calculate_grid_frame(data, width, height, grid_width, grid_height, 1);
+    int grid_width = 10;
+    int grid_height = 10;
+    
+    int* grid_frame = calculate_grid_frame(motion_mask, width, height, grid_width, grid_height, 1);
     int grid_w_num = ceil((float)width/grid_width);
     int grid_h_num = ceil((float)height/grid_height);
     
@@ -298,66 +313,63 @@ struct bounding_box* find_bounding_box(uint8_t* data, int width, int height, str
         }
     }
     
-    struct bounding_box *res_bounding_box = NULL;
-    if (segments.num <= 0) {
-        blog(LOG_INFO, "no segments");
-        goto freeall;
-    }
-    
-    //find maximum segment
+    // delete small segments
     seg = segments.array[0];
-    int max_size = seg->num;
+    int min_size = (grid_w_num* grid_h_num)/20;
+    
     for (int i=1; i<segments.num; ++i) {
-        if (segments.array[i]->num > max_size) {
-            max_size = segments.array[i]->num;
-            seg = segments.array[i];
+        if (segments.array[i]->num < min_size) {
+            da_free((*segments.array[i]));
+            da_erase(segments, i);
         }
     }
-
-    //get bounding box
-    int left, right, top, bot;
-    left = width-1;
-    right = 0;
-    top = height-1;
-    bot = 0;
-    for (int i=0; i<seg->num; ++i) {
-        p = seg->array[i];
-        if (p->x < left)
-            left = p->x;
-        if (p->x > right)
-            right = p->x;
-        if (p->y < top)
-            top = p->y;
-        if (p->y > bot)
-            bot = p->y;
+    
+    //renew mask
+    int r_w,r_h,edge_dist,line_size;
+    for(int h=0; h<grid_h_num; ++h) {
+        for (int w=0; w<grid_w_num; ++w) {
+            seg = labels[h*grid_w_num+w];
+            if ( seg == NULL || seg->num == 0 ) {
+                //empty this patch
+                for(r_h = h*grid_height; r_h<(h+1)*grid_height && r_h<height; ++r_h) {
+                    r_w = w*grid_width;
+                    edge_dist = width-r_w;
+                    line_size = edge_dist>grid_width?grid_width:edge_dist;
+                    memset(&motion_mask[r_h*width+r_w], 0, line_size); //???
+                }
+            }
+        }
     }
-    left *= grid_width;
-    right *= grid_width;
-    top *= grid_height;
-    bot *= grid_height;
     
-    //blog(LOG_INFO, "seg->num: %d", seg->num);
+    //feather mask
+    average_smooth(motion_mask, width, height, 1);
     
-    struct bounding_box tmp_bd_box = { {left, top}, {right, bot}, { (left+right)/2, (top+bot)/2 } };
-    res_bounding_box = malloc(sizeof(struct bounding_box));
-    memcpy(res_bounding_box, &tmp_bd_box, sizeof(struct bounding_box));
-    
+freeall:
     for (int i=0; i<segments.num; ++i) {
         da_free((*segments.array[i]));
     }
-
-freeall:
     da_free(segments);
-
+    
     free(grid_frame);
     free(edges);
     free(grids);
     free(labels);
-    
-    return res_bounding_box;
 }
 
-uint8_t* find_motion_mask(uint8_t* old_framedata, uint8_t *framedata, int width, int height, int channel) {
+uint8_t* find_motion_mask(struct darray *framelist, int width, int height, int channel, int motion_level) {
+    if (framelist == NULL || framelist->num < 2)
+        return NULL;
+    
+    DARRAY(uint8_t*) *list = framelist ;
+    
+    uint8_t* old_framedata = list->array[framelist->num-2];
+    uint8_t *framedata = list->array[framelist->num-1];
+    
+    if (old_framedata == NULL || framedata == NULL) {
+        blog(LOG_INFO, "no frame data %d", list->num);
+        return NULL;
+    }
+    
     //resize frame to avoid too much calculation
     int resize_width = 600;
     int resize_height = 400;
@@ -368,7 +380,7 @@ uint8_t* find_motion_mask(uint8_t* old_framedata, uint8_t *framedata, int width,
     uint8_t* diff = malloc(sizeof(uint8_t)*channel);
     
     int pos;
-    int threshold = 30;
+    int threshold = 20;
     for (int h = 0; h < resize_height; ++h) {
         for (int w = 0; w < resize_width; ++w) {
             pos = h*resize_width+w;
@@ -384,16 +396,65 @@ uint8_t* find_motion_mask(uint8_t* old_framedata, uint8_t *framedata, int width,
         }
     }
     
-    //median_smooth(mask, width, height);
-    erode(mask, resize_width, resize_height, 1);
-    dilate(mask, resize_width, resize_height, 1);
+    //motion level using grid representation
+    int grid_width = 10;
+    int grid_height = 10;
+    int grid_w_num = ceil((float)resize_width/grid_width);
+    int grid_h_num = ceil((float)resize_height/grid_height);
+    int* grid_frame = calculate_grid_frame(mask, resize_width, resize_height, grid_width, grid_height, 1);
+    
+    int grid_w, grid_h;
+    for (int h = 0; h < resize_height; ++h) {
+        for (int w = 0; w < resize_width; ++w) {
+            grid_w = w/grid_width;
+            grid_h = h/grid_height;
+            
+            mask[h*resize_width+w] = round( (float)grid_frame[grid_h*grid_w_num + grid_w]*motion_level/(grid_width*grid_height) );
+        }
+    }
+    free(grid_frame);
+
+    //erode(mask, resize_width, resize_height, 1);
+    //dilate(mask, resize_width, resize_height, 1);
     uint8_t* res_mask = resize_frame(mask, resize_width, resize_height, width, height, 1);
     
     free(mask);
     free(diff);
     free(resized_old_frame);
     free(resized_frame);
+    
+    tune_motion_mask(res_mask, width, height);
     return res_mask;
 }
 
+struct bounding_box* find_bounding_box(uint8_t* mask, int threshold, int width, int height, struct bounding_box *pre_bounding_box) {
+    if (mask == NULL)
+        return NULL;
+    
+    struct bounding_box *res_bounding_box = NULL;
+    
+    //get bounding box
+    int left, right, top, bot;
+    left = width-1;
+    right = 0;
+    top = height-1;
+    bot = 0;
+    for (int h=0; h<height; ++h) {
+        for(int w=0; w<width; ++w) {
+            if (mask[h*width+w] < threshold)
+                continue;
+            
+            if (w<left) left=w;
+            if (w>right) right=w;
+            if (w<top) top=h;
+            if (w>bot) bot=h;
+        }
+    }
+    
+    struct bounding_box tmp_bd_box = { {left, top}, {right, bot}, { (left+right)/2, (top+bot)/2 } };
+    res_bounding_box = malloc(sizeof(struct bounding_box));
+    memcpy(res_bounding_box, &tmp_bd_box, sizeof(struct bounding_box));
+    
+    return res_bounding_box;
+}
 

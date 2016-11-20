@@ -1,4 +1,5 @@
 #include <obs-internal.h>
+#include <math.h>
 
 /*
 void check_video_format(enum video_format format);
@@ -25,3 +26,6 @@ int int_fit_in_range(int *value, int min, int max);
 //2dµ„ Œª÷√æÿ’Û
 void mat4_trans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, int *res_y);
 void mat4_invtrans(const struct matrix4 *trans_mat, int* x, int* y, int *res_x, int *res_y);
+
+
+void color_bgr_pixel(uint8_t* dst, int level, int max_level);
