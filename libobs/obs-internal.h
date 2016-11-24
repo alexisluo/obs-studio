@@ -521,7 +521,8 @@ enum visual_frame_focus_type {
 	NORMAL_FOCUS,
 	BOUNDING_BOX_FOCUS,
     BOUNDING_BOX_RESIZE_FOCUS,
-    MOTION_MASK_FOCUS
+    MOTION_MASK_FOCUS,
+    MOTION_MASK_SHOW // showing the motion mask, only for camera frame, no resize or translation
 };
 
 struct obs_source {

@@ -684,6 +684,7 @@ void source_add_visual_properties(obs_properties_t *properties) {
     obs_property_list_add_int(p, "boundingbox", BOUNDING_BOX_FOCUS);
     obs_property_list_add_int(p, "boundingbox resize", BOUNDING_BOX_RESIZE_FOCUS);
     obs_property_list_add_int(p, "motion mask", MOTION_MASK_FOCUS);
+    obs_property_list_add_int(p, "showing motion mask", MOTION_MASK_SHOW);
     
 
 	//obs_properties_add_button(properties, TEXT_BG_ANALYSE, TEXT_BG_ANALYSE,

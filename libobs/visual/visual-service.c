@@ -279,12 +279,21 @@ void cached_source(struct obs_scene_item* item) {
 	uint8_t color, frame_color, alpha;
 //	uint8_t diff, bg_configdence;
     
+    //cache motion mask
+    if (visual_frame_type == CAMERA_FRAME && motion_mask!=NULL && frame_focus_type == MOTION_MASK_SHOW) {
+        for (h = 0; h < frame_height; ++h) {
+            for (w = 0; w < frame_width; ++w) {
+                color_bgr_pixel(&framedata[4 * (h*frame_width + w)], motion_mask[h*frame_width + w], motion_level);
+            }
+        }
+    }
+    
+    // merge and cached frame
 	for (h = 0; h < height; ++h) {
 		for (w = 0; w < width; ++w) {
 			mat4_invtrans(trans_mat, &w, &h, &frame_w, &frame_h);
-            if (frame_w < 0 || frame_w >= frame_width || frame_h < 0 || frame_h >= frame_height) {
-				continue; // need improvement!
-            }
+            if (frame_w < 0 || frame_w >= frame_width || frame_h < 0 || frame_h >= frame_height)
+				continue;
             
             alpha = framedata[4 * (frame_h*frame_width + frame_w) + 3];
             
@@ -303,21 +312,21 @@ void cached_source(struct obs_scene_item* item) {
 				frame_color = framedata[4 * (frame_h*frame_width + frame_w) + c];
                 
                 blend_frame_color(&visualService->cached_data[4 * (h*width + w) + c], visual_frame_type, color, frame_color, alpha);
-				new_frame->data[0][4 * (frame_h*frame_width + frame_w) + c] = visualService->cached_data[4 * (h*width + w) + c];
+				//new_frame->data[0][4 * (frame_h*frame_width + frame_w) + c] = visualService->cached_data[4 * (h*width + w) + c];
 			}
-			new_frame->data[0][4 * (frame_h*frame_width + frame_w) + 3] = 255;
+			//new_frame->data[0][4 * (frame_h*frame_width + frame_w) + 3] = 255;
 			visualService->cached_data[4 * (h*width + w) + 3] = 255;
 		}
 	}
     
-//    blog(LOG_INFO, "s2");
-    
-    //cache motion mask
-    if (visual_frame_type == CAMERA_FRAME && motion_mask!=NULL) {
-        for (h = 0; h < frame_height; ++h) {
-            for (w = 0; w < frame_width; ++w) {
-                color_bgr_pixel(&new_frame->data[0][4 * (h*frame_width + w)], motion_mask[h*frame_width + w], motion_level);
-            }
+    // fill the new frame with cached frame value
+    for (frame_h = 0; frame_h < frame_height; ++frame_h) {
+        for (frame_w = 0; frame_w < frame_width; ++frame_w) {
+            mat4_trans(trans_mat, &frame_w, &frame_h, &w, &h);
+            if (w < 0 || w >= width || h < 0 || h >= height)
+                continue;
+            
+            memcpy(&new_frame->data[0][4 * (frame_h*frame_width + frame_w)], &visualService->cached_data[4 * (h*width + w)], 4);
         }
     }
     
